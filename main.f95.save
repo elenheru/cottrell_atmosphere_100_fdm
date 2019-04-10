@@ -1,0 +1,175 @@
+!MS$DECLARE
+module      comp_parameter_mod
+    save
+    integer,parameter   ::  time_max=1000000!nint(1d6)
+    integer,parameter   ::  halfsize=17
+endmodule   comp_parameter_mod
+
+module      deformations_mod
+    use comp_parameter_mod
+    real(8),dimension(-halfsize:halfsize,-halfsize:halfsize) :: &
+    displacement_x,displacement_y,strain_xx,strain_yy
+endmodule   deformations_mod
+
+module      diffusion_mod
+    use comp_parameter_mod
+    real(8),dimension(-halfsize:halfsize,-halfsize:halfsize) :: d1_s,d2_s,dx_s,dy_s
+endmodule   diffusion_mod
+
+module      phys_constants_mod
+    real(8),parameter   ::  temperature         = 2000d0
+    real(8),parameter   ::  lattice_parameter   = 2.86
+    real(8),parameter   ::  volume_per_atom     = lattice_parameter**3*5d-1
+    real(8),parameter   ::  diffusion_const     = 5d-10
+    real(8),parameter   ::  boltzmann_const     = 8.6173303d-5
+    real(8),parameter   ::  carbon_concentration= 1d-2
+    real(8),parameter   ::  time_step_duration  = 1d-7
+    real(8),parameter   ::  k1                  = 5.6693838153357401 !halfackland
+    real(8),parameter   ::  k2                  =-4.0988435809159078 !halfackland
+    real(8),parameter   ::  k3                  = 2.8860853075335791 !halfackland
+endmodule   phys_constants_mod
+
+program    cottrell_100_ha_simple
+    use omp_lib
+    use comp_parameter_mod
+
+    integer i,j
+!    real ancil1
+    call    obtain____matrices_e   !; zagruzitq napriazxenija
+    !STOP "obtain matrices deformation"
+    call    calculate_matrices_d   !; rasscxitatq matricy D
+    !STOP "obtain matrices diffusion"
+    do i_time=1,comp_parameter_mod !; zapustitq cikl vremeni
+        call    calculate_concentration_derivative
+        call    
+    enddo
+    !;
+    !;
+endprogram cottrell_100_ha_simple
+
+subroutine      obtain____matrices_e
+    use comp_parameter_mod
+    use deformations_mod
+    use phys_constants_mod
+    integer i_x,i_y
+    REAL(8) E11,E22
+!    open(301, file = 'Matrix-stage10-z1-Ux-100.txt')
+!    do  i_y=-halfsize,halfsize
+!        !do  i_x=-halfsize,halfsize
+!            read(301,401) displacement_x(-halfsize:halfsize,i_y)
+!            !i_y is slow changing here, as it is in wo_matrices
+!        !enddo
+!    enddo
+!    do  i_y=-halfsize,halfsize
+!        do  i_x=-halfsize,halfsize
+!        !    read(301,401) displacement(-halfsize:halfsize,i_y)
+!            strain_xx()
+!        enddo
+!    enddo
+!    strain_yy
+!    close(301)
+!401 format(100(1x,E11.4))
+    DO  I_Y=-HALFSIZE,HALFSIZE
+        IF(I_Y.EQ.-HALFSIZE)PRINT*,"FAKE STRAIN FIELDS ARE USED"
+        DO  I_X=-HALFSIZE,HALFSIZE
+            CALL STRAIN_DAMPER(I_X*LATTICE_PARAMETER,I_Y*LATTICE_PARAMETER,E11,E22)
+            STRAIN_XX(I_X,I_Y)=E11
+            STRAIN_YY(I_X,I_Y)=E22
+        ENDDO
+    ENDDO
+endsubroutine   obtain____matrices_e
+
+subroutine      calculate_matrices_d
+    use phys_constants_mod
+    use diffusion_mod
+    use deformations_mod
+    integer i_x,i_y
+    real(8) d1,d2
+    print*, "diffusion coefficients marices are obtained"
+    do  i_y=-halfsize,halfsize
+        do  i_x=-halfsize,halfsize
+            d1_s(i_x,i_y)=d1(strain_xx(i_x,i_y),strain_yy(i_x,i_y),0d0)
+            d2_s(i_x,i_y)=d2(strain_xx(i_x,i_y),strain_yy(i_x,i_y),0d0)
+        enddo
+    enddo
+    do  i_y=-halfsize+1,halfsize-1
+        do  i_x=-halfsize+1,halfsize-1
+            dy_s(i_x,i_y)=d2_s(i_x  ,i_y+1) - d2_s(i_x  ,i_y-1)
+            dx_s(i_x,i_y)=d1_s(i_x+1,i_y  ) - d1_s(i_x-1,i_y  )
+        enddo
+    enddo
+    do  i_y=-halfsize+1,halfsize-1
+        i_x=-halfsize
+            dy_s(i_x,i_y)=d2_s(i_x  ,i_y+1) - d2_s(i_x  ,i_y-1)
+            dx_s(i_x,i_y)=d1_s(i_x+1,i_y  ) - d1_s(i_x+2,i_y  ) + d1_s(i_x+1,i_y  )
+        i_x= halfsize
+            dy_s(i_x,i_y)=d2_s(i_x  ,i_y+1) - d2_s(i_x  ,i_y-1)
+            dx_s(i_x,i_y)=d1_s(i_x-1,i_y  ) - d1_s(i_x-2,i_y  ) + d1_s(i_x-1,i_y  )
+    enddo
+    do  i_x=-halfsize+1,halfsize-1
+            i_y=-halfsize
+        dy_s(i_x,i_y)=d2_s(i_x  ,i_y+1) - d2_s(i_x  ,i_y-2) + d2_s(i_x  ,i_y+1)
+        dx_s(i_x,i_y)=d1_s(i_x+1,i_y  ) - d1_s(i_x-1,i_y  )
+            i_y= halfsize
+        dy_s(i_x,i_y)=d2_s(i_x  ,i_y+1) - d2_s(i_x  ,i_y+2) + d2_s(i_x  ,i_y+1)
+        dx_s(i_x,i_y)=d1_s(i_x+1,i_y  ) - d1_s(i_x-1,i_y  )
+    enddo
+    i_y=-halfsize
+    i_x=-halfsize
+    dy_s(i_x,i_y)=d2_s(i_x+1,i_y+1) - d2_s(i_x+2,i_y+2) + d2_s(i_x+1,i_y+1)
+    dx_s(i_x,i_y)=d1_s(i_x+1,i_y+1) - d1_s(i_x+2,i_y+2) + d1_s(i_x+1,i_y+1)
+    i_y= halfsize
+    i_x=-halfsize
+    dy_s(i_x,i_y)=d2_s(i_x+1,i_y-1) - d2_s(i_x+2,i_y-2) + d2_s(i_x+1,i_y-1)
+    dx_s(i_x,i_y)=d1_s(i_x+1,i_y-1) - d1_s(i_x+2,i_y-2) + d1_s(i_x+1,i_y-1)
+    i_y=-halfsize
+    i_x= halfsize
+    dy_s(i_x,i_y)=d2_s(i_x-1,i_y+1) - d2_s(i_x-2,i_y+2) + d2_s(i_x-1,i_y+1)
+    dx_s(i_x,i_y)=d1_s(i_x-1,i_y+1) - d1_s(i_x-2,i_y+2) + d1_s(i_x-1,i_y+1)
+    i_y= halfsize
+    i_x= halfsize
+    dy_s(i_x,i_y)=d2_s(i_x-1,i_y-1) - d2_s(i_x-2,i_y-2) + d2_s(i_x-1,i_y-1)
+    dx_s(i_x,i_y)=d1_s(i_x-1,i_y-1) - d1_s(i_x-2,i_y-2) + d1_s(i_x-1,i_y-1)
+endsubroutine   calculate_matrices_d
+
+subroutine      calculate_concentration_derivative
+        
+    
+    !$OMP PARALLELL
+    !$OMP WORKSHARE
+    !$OMP DO
+
+    !$OMP END DO
+    !$OMP END WORKSHARE
+    !$OMP END PARALLELL
+endsubroutine   calculate_concentration_derivative
+
+real(8) function d1(e11,e22,e33)
+    use deformations_mod
+    use phys_constants_mod
+    real(8),intent(in) :: e11,e22,e33
+    real(8) :: reci_kt, exp1, exp2
+    reci_kt = 1d0/(temperature*boltzmann_const)
+    exp1    = exp(-reci_kt*(k2*e22+k3*e33))
+    exp2    = exp(-reci_kt*(k3*e22+k2*e33))
+    d1      = diffusion_const*5d-1*exp(-reci_kt*(k1*e11))*(exp1+exp2)
+endfunction d1
+
+real(8) function d2(e11,e22,e33)
+    use deformations_mod
+    use phys_constants_mod
+    real(8),intent(in) :: e11,e22,e33
+    real(8) :: reci_kt, exp1, exp2
+    reci_kt = 1d0/(temperature*boltzmann_const)
+    exp1    = exp(-reci_kt*(k2*e33+k3*e11))
+    exp2    = exp(-reci_kt*(k3*e33+k2*e11))
+    d2      = diffusion_const*5d-1*exp(-reci_kt*(k1*e22))*(exp1+exp2)
+endfunction d2
+
+SUBROUTINE STRAIN_DAMPER(X,Y,E11,E22)
+    REAL(8),INTENT(IN)      ::  X,Y
+    REAL(8),INTENT(INOUT)   ::  E11,E22
+    !HIRTH LOTHE FORMULA 3.42 PAGE 57
+    E11=-Y*( Y*Y+3*X*X)*((X*X+Y*Y+1d-3)**-2)
+    E22= Y*(-Y*Y+  X*X)*((X*X+Y*Y+1d-3)**-2)
+ENDSUBROUTINE
