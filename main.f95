@@ -42,7 +42,7 @@ module      phys_constants_mod
 !    real(8),parameter   ::  time_step_duration  = 16d-13*1d-4
 !    real(8),parameter   ::  temperature         = 823d0
 
-    real(8),parameter   ::  time_step_duration  = 37d-13*3d-2
+    real(8),parameter   ::  time_step_duration  = 37d-13*3d-2* 1d-1
     real(8),parameter   ::  temperature         = 1500d0+273d0
 
 !    real(8),parameter   ::  time_step_duration  = 21d-13*1d-3
@@ -74,23 +74,17 @@ PROGRAM    COTTRELL_100_HA_SIMPLE !___________________
     !STOP "obtain matrices diffusion"
         CALL    CALCULATE_CONCENTRATION_D_PRODUCT !WRAP IN THE PARTIALS
     print'(A,$)',"::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
-    do i_time=1,1+time_max !; zapustitq cikl vremeni
-    !print*," ",i_time," of ",time_max
+    do i_time=1,1+time_max
         !EXIT
-        !call    calculate_concentration_derivative
         call    calculate_concentration_d_product !wrap in the partials
         call    calculate_concentration__addition(i_time) !wrap in the partials
         call    apply_concentration_addition
         if (mod(i_time-1,1500000).eq.0) print*," ",i_time," of ",time_max
-        if (mod(i_time-1,0025000).eq.0) print'(A,$)',"."
+        if (mod(i_time-1,0050000).eq.0) print'(A,$)',"."
+        if (mod(i_time-1,0050000).eq.0) call wo_matrices(i_time)
     enddo
-!    call    expand_substitution !go back to original functions
-    call    wo_matrices
-    !;vyvesti matricu koncentracij
-    !;jestq c (koncentracija) i dk(koefficient diffuzii)
-    !;rasscxitatq popravku k koncentracii
-    !;nado
-    !;nado
+
+
 ENDPROGRAM COTTRELL_100_HA_SIMPLE !___________________
 
 subroutine      obtain____matrices_e
@@ -218,8 +212,9 @@ subroutine      calculate_matrices_d
             d2_s(i_x,i_y)=d2(strain_xx(i_x,i_y),strain_yy(i_x,i_y),0d0)
         enddo
     enddo
-    d1_s=d1_s*time_step_duration/(volume_per_atom*h_x*h_x)
-    d2_s=d2_s*time_step_duration/(volume_per_atom*h_x*h_x)
+    d1_s=d1_s*time_step_duration!/(volume_per_atom*h_x*h_x)
+    d2_s=d2_s*time_step_duration!/(volume_per_atom*h_x*h_x)
+    !volume mer atom division deprecated as AVN said
 endsubroutine   calculate_matrices_d
 
 subroutine      calculate_concentration_d_product
@@ -253,19 +248,26 @@ subroutine      calculate_concentration__addition(i_time_local)
     !!$OMP DO
     do j=-halfsize+2,halfsize-2
         do i=-halfsize+2,halfsize-2
-            if(j*j .gt. 325) then
-              c_add(i,j)=cdy(i,j-1)-cdy(i,j)*4d0+cdy(i,j+1)  +cdx(i-1,j)        +cdx(i+1,j)
-              cycle
-            endif
-            if(i*i .gt. 325) then
-              c_add(i,j)=cdy(i,j-1)-cdy(i,j)*4d0+cdy(i,j+1)  +cdx(i-1,j)        +cdx(i+1,j)
-              cycle
-            endif
+!            if(j*j .gt. 325) then
+!              c_add(i,j)=cdy(i,j-1)-cdy(i,j)*4d0+cdy(i,j+1)  +cdx(i-1,j)        +cdx(i+1,j)
+!              cycle
+!            endif
+!            if(i*i .gt. 325) then
+!              c_add(i,j)=cdy(i,j-1)-cdy(i,j)*4d0+cdy(i,j+1)  +cdx(i-1,j)        +cdx(i+1,j)
+!              cycle
+!            endif
 
 !          if( (abs(c_add(i,j-1))+abs(c_add(i,j+1)).lt.1e-30).and. &
 !              (i.gt.0) ) exit
             !IF(I*I .GT. 10) CYCLE ; IF(J*J .GT. 10) CYCLE
-            !c_add(i,j)=cdy(i,j-1)-cdy(i,j)*2d0+cdy(i,j+1) +cdx(i-1,j)-cdx(i,j)*2d0+cdx(i+1,j)
+            !PRINT'(SP,1x,E12.3e2,$)',C_ADD(I,J)
+!            PRINT*,CDY(I,J-1)
+!            PRINT*,CDY(I,J)
+!            PRINT*,CDY(I,J+1)
+!            PRINT*,CDX(I-1,J)
+!            PRINT*,CDX(I,J)
+!            PRINT*,CDX(I+1,J)
+            c_add(i,j)=cdy(i,j-1)-cdy(i,j)*2d0+cdy(i,j+1) +cdx(i-1,j)-cdx(i,j)*2d0+cdx(i+1,j)
 !            c_add(i,j)=(&
 !            cdy(i,j-1)+cdy(i,j-2)-cdy(i,j)*8d0+cdy(i,j+1)+cdy(i,j+2)+&
 !            cdx(i-1,j)+cdx(i-2,j)             +cdx(i+1,j)+cdx(i+2,j))*5d-1
@@ -286,10 +288,10 @@ subroutine      calculate_concentration__addition(i_time_local)
 !              cdy(i-2,j)   +cdy(i+2,j)  )*25d-2      &
 !              )*5d-1
 !wiki
-              c_add(i,j)=(&
-              -cdy(i,j-2)+16d0*cdy(i,j-1) -60d0*cdy(i,j) +16d0*cdy(i,j+1)-cdy(i,j+2) +&
-              -cdy(i-2,j)+16d0*cdy(i-1,j)                +16d0*cdy(i+1,j)-cdy(i+2,j)  &
-              )/12d0 !10065s without shortings
+!              c_add(i,j)=(&
+!              -cdy(i,j-2)+16d0*cdy(i,j-1) -60d0*cdy(i,j) +16d0*cdy(i,j+1)-cdy(i,j+2) +&
+!              -cdy(i-2,j)+16d0*cdy(i-1,j)                +16d0*cdy(i+1,j)-cdy(i+2,j)  &
+!              )/12d0 !10065s without shortings
 !            if(i_time_local .lt. 8000) then
 !            else
 !              c_add(i,j)=cdy(i,j-1)-cdy(i,j)*4d0+cdy(i,j+1)  +cdx(i-1,j)        +cdx(i+1,j)
@@ -318,39 +320,38 @@ subroutine      initiate__matrices_c
     cdy=0d0
 endsubroutine   initiate__matrices_c
 
-subroutine      wo_matrices
+subroutine      wo_matrices(current_time)
     use concentration_mod
     use phys_constants_mod
     USE DIFFUSION_MOD
     USE DEFORMATIONS_MOD
-    integer i_y
-!    wo_cnt=wo_cnt+1
-    open(302, file = 'c_test.txt')
-!    if(wo_cnt.eq.1)open(302, file = 'c_test.txt')
-!    if(wo_cnt.eq.2)open(302, file = 'c2_test.txt')
-!    if(wo_cnt.eq.3)open(302, file = 'c3_test.txt')
-!    if(wo_cnt.eq.4)open(302, file = 'c4_test.txt')
-!    if(wo_cnt.eq.5)open(302, file = 'c5_test.txt')
-!    if(wo_cnt.eq.6)open(302, file = 'c6_test.txt')
-!    if(wo_cnt.ge.7)open(302, file = 'c+_test.txt')
+    integer i_x,i_y
+    integer,intent(in) :: current_time
+    character (LEN = 17) file_name
+
+    wo_cnt=wo_cnt+1
+   !write( filename_trajectory,'(A,A,A,I5.5,A)'),"test_",unique_random_string,"_grid_frame",wo_cnt,".txt"
+    write( file_name,'(A,I5.5,A)'),"c_grid_",wo_cnt,"_.txt"
+    open (302, file = file_name)
+    write(302,'(A,I10.10,A)')"# ",nint(current_time*time_step_duration*1d12)," ps"
     !open(305, file = 'd_test.txt')
     !open(306, file = 'e_test.txt')
     !open(307, file = 'log_test.txt')
-    DO  I_Y= HALFSIZE,-HALFSIZE,-1
-        write(302,401) ,c_iia(-halfsize:halfsize,i_y)/carbon_concentration
-        !write(302,401) ,c_add(-halfsize:halfsize,i_y)
-        !write(305,401) ,d1_s(-halfsize:halfsize,i_y)
-        !write(302,401) ,d1_s(-halfsize:halfsize,i_y)
-        !write(307,401) ,log10(d1_s(-halfsize:halfsize,i_y)*c_iia(-halfsize:halfsize,i_y))*d1_s(-halfsize:halfsize,i_y)
-        !WRITE(302,401) ,LOG10(1D-60+ABS(C_ADD(-HALFSIZE:HALFSIZE,I_Y)))!*&
-        !C_ADD(-HALFSIZE:HALFSIZE,I_Y)/(ABS(C_ADD(-HALFSIZE:HALFSIZE,I_Y)))
-    ENDDO
-    401 format(300(1x,E14.5e3))
+    do  i_x= halfsize,-halfsize,-1
+      do  i_y= halfsize,-halfsize,-1
+          write(302,411) &
+            i_x*5d-1*lattice_parameter,&
+            i_y*5d-1*lattice_parameter,&
+            c_iia(i_x,i_y)/carbon_concentration
+      enddo
+    enddo
+    411 format(SP,3(1x,E11.4e2))
+!401 format(300(1x,E14.5e3))
     close(302)
     !close(305)
     !close(307)
-    print*," "
-    print*,"wo ok"
+    !print*," "
+    print'(A,$)',"wo ok"
 endsubroutine   wo_matrices
 
 subroutine      wo_matrices_e
