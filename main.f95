@@ -344,6 +344,7 @@ subroutine      wo_matrices(current_time)
             i_y*5d-1*lattice_parameter,&
             c_iia(i_x,i_y)/carbon_concentration
       enddo
+      write(302,*) " "
     enddo
     411 format(SP,3(1x,E11.4e2))
 !401 format(300(1x,E14.5e3))
