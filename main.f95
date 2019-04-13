@@ -1,7 +1,7 @@
 !MS$DECLARE
 module      comp_parameter_mod
     save
-    integer(8),parameter   ::  time_max=nint(8d14,8)!80000000 !0!nint(1d6)
+    integer(8),parameter   ::  time_max=nint(8e14_8,8)!80000000 !0!nint(1d6)
     integer,parameter   ::  time_mul=1!nint(1d6)
     integer,parameter   ::  halfsize=66
     integer,parameter   ::  nroot   =5
