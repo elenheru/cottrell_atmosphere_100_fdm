@@ -1,7 +1,7 @@
 !MS$DECLARE
 module      comp_parameter_mod
     save
-    integer,parameter   ::  time_max=20000000!0!nint(1d6)
+    integer(8),parameter   ::  time_max=nint(8d14,8)!80000000 !0!nint(1d6)
     integer,parameter   ::  time_mul=1!nint(1d6)
     integer,parameter   ::  halfsize=66
     integer,parameter   ::  nroot   =5
@@ -33,7 +33,7 @@ module      phys_constants_mod
     real(8),parameter   ::  volume_per_atom     = lattice_parameter**3*5d-1
     real(8),parameter   ::  diffusion_const     = 5d-8*1d20
     real(8),parameter   ::  barrier             = 0.86d0 !ev
-    real(8),parameter   ::  boltzmann_const     = 8.6173303d-5
+    real(8),parameter   ::  boltzmann_const     = 8.6173303d-5 !
     real(8),parameter   ::  carbon_concentration= 5d-4 !initial concentration
 
 !    real(8),parameter   ::  time_step_duration  = 16d-13*2d-2!/14d1
@@ -42,7 +42,7 @@ module      phys_constants_mod
 !    real(8),parameter   ::  time_step_duration  = 16d-13*1d-4
 !    real(8),parameter   ::  temperature         = 823d0
 
-    real(8),parameter   ::  time_step_duration  = 37d-13*3d-2* 1d-1
+    real(8),parameter   ::  time_step_duration  = 37d-13*3d-2* 12d-2!* 1d-2
     real(8),parameter   ::  temperature         = 1500d0+273d0
 
 !    real(8),parameter   ::  time_step_duration  = 21d-13*1d-3
@@ -61,8 +61,10 @@ PROGRAM    COTTRELL_100_HA_SIMPLE !___________________
     use omp_lib
     use comp_parameter_mod
 
-    integer i,j,i_time
+    integer i,j
+    integer(8) i_time
 !    real ancil1
+  !STOP" nothing is done "
     call    po_info
     call    obtain____matrices_e   !; zagruzitq napriazxenija
     call    wo_matrices_e
@@ -74,14 +76,14 @@ PROGRAM    COTTRELL_100_HA_SIMPLE !___________________
     !STOP "obtain matrices diffusion"
         CALL    CALCULATE_CONCENTRATION_D_PRODUCT !WRAP IN THE PARTIALS
     print'(A,$)',"::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
-    do i_time=1,1+time_max
+    do i_time=1_8,1_8+time_max
         !EXIT
         call    calculate_concentration_d_product !wrap in the partials
         call    calculate_concentration__addition(i_time) !wrap in the partials
         call    apply_concentration_addition
         if (mod(i_time-1,1500000).eq.0) print*," ",i_time," of ",time_max
         if (mod(i_time-1,0050000).eq.0) print'(A,$)',"."
-        if (mod(i_time-1,0050000).eq.0) call wo_matrices(i_time)
+        if (mod(i_time  ,0050000).eq.1) call wo_matrices(i_time)
     enddo
 
 
@@ -242,7 +244,7 @@ endsubroutine   calculate_concentration_d_product
 subroutine      calculate_concentration__addition(i_time_local)
     use concentration_mod
     integer i,j
-    integer,intent(in)::i_time_local
+    integer(8),intent(in)::i_time_local
     !!$OMP PARALLEL
     !!$OMP WORKSHARE
     !!$OMP DO
@@ -326,14 +328,16 @@ subroutine      wo_matrices(current_time)
     USE DIFFUSION_MOD
     USE DEFORMATIONS_MOD
     integer i_x,i_y
-    integer,intent(in) :: current_time
+    integer(8),intent(in) :: current_time
     character (LEN = 17) file_name
 
     wo_cnt=wo_cnt+1
    !write( filename_trajectory,'(A,A,A,I5.5,A)'),"test_",unique_random_string,"_grid_frame",wo_cnt,".txt"
     write( file_name,'(A,I5.5,A)'),"c_grid_",wo_cnt,"_.txt"
     open (302, file = file_name)
-    write(302,'(A,I10.10,A)')"# ",nint(current_time*time_step_duration*1d12)," ps"
+    write(302,'(A,I10.10,A,A,I4.4,A)')"# ",nint(current_time*time_step_duration*1d12,8)," ps;"&
+    ," temperature is ",nint(temperature)," K"
+    !write(302,'(A,I10.4,A)')"# temperature is ",nint(temperature)," K"
     !open(305, file = 'd_test.txt')
     !open(306, file = 'e_test.txt')
     !open(307, file = 'log_test.txt')
@@ -352,7 +356,7 @@ subroutine      wo_matrices(current_time)
     !close(305)
     !close(307)
     !print*," "
-    print'(A,$)',"wo ok"
+    print'(A,$)',"wo ok;"
 endsubroutine   wo_matrices
 
 subroutine      wo_matrices_e
